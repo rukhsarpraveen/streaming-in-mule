@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd">
+	<file:config name="File_Config" doc:name="File Config" doc:id="de7a47ca-8d15-4ddd-897d-6814acb68101" >
+		<file:connection workingDir="C:\Users\rukhs\Downloads\a_sample_test_streaming\input\" />
+	</file:config>
+	<file:config name="File_Config1" doc:name="File Config" doc:id="93ad232f-99b5-4654-ba49-1c9708ad695f" >
+		<file:connection workingDir="C:\Users\rukhs\Downloads\a_sample_test_streaming\output\" />
+	</file:config>
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="608b8176-7c12-4098-a334-05e89504b46f" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<flow name="sample_app_streamingFlow1" doc:id="5a9263a2-b24d-466b-80ba-57175d9b2dff" >
+		<http:listener doc:name="Listener" doc:id="62c660f8-9619-4ca8-98a9-650c9b171408" config-ref="HTTP_Listener_config" path="/status"/>
+		<set-payload value='#[output application/json --- &#10;{&#10;"status" : "success",&#10;"timeStamp": now()&#10;&#10;}]' doc:name="Set Payload" doc:id="41a40555-e2c6-4700-9734-66ff321128d8" mimeType="application/json"/>
+		<logger level="INFO" doc:name="Logger" doc:id="f812ffca-61e4-4313-af33-567d2d581bb0" message="#[payload]"/>
+	</flow>
+	<flow name="sample_app_streamingFlow" doc:id="a88d073e-b3b8-45f2-82d5-955772212cab" >
+		<http:listener doc:name="Listener" doc:id="cf3b94dd-9e24-4a48-a0d8-062500b2d287" config-ref="HTTP_Listener_config" path="/test_streaming"/>
+		<logger level="INFO" doc:name="Logger" doc:id="75cd6022-6982-4038-871b-abdbe5a1768d" message='#["start of the flow"]'/>
+		<file:read doc:name="Read" doc:id="65f4313d-0763-44c4-be72-025c73fe62f9" config-ref="File_Config" path="input.csv">
+			<non-repeatable-stream />
+		</file:read>
+		<ee:transform doc:name="Transform Message" doc:id="2609318a-e0c4-4a77-ae05-583c23a0c329">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+
+@StreamCapable()
+input payload application/csv
+output application/json deferred=true
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<file:write doc:name="Write" doc:id="4ffd10f8-5e1d-4f9e-8b56-a0154f22b84a" config-ref="File_Config1" path='#["output" ++ uuid() ++ ".json"]' mode="CREATE_NEW"/>
+		<logger level="INFO" doc:name="Logger" doc:id="8ca51dcd-e669-41d4-961d-1f27c6754f6c" message='#["end of the flow"]'/>
+	</flow>
+	<flow name="sample_app_streamingFlow_for_each" doc:id="ee465e85-3ffd-479f-a5b7-cf2200e3fe25" >
+		<http:listener doc:name="Listener" doc:id="05c809b1-86ac-4e65-aa1d-493636941311" config-ref="HTTP_Listener_config" path="/test_streaming/for-each"/>
+		<logger level="INFO" doc:name="Logger" doc:id="75cd6022-6982-4038-871b-abdbe5a1768d" message='#["start of the flow"]'/>
+		<file:read doc:name="Read" doc:id="65f4313d-0763-44c4-be72-025c73fe62f9" config-ref="File_Config" path="input.csv">
+			<non-repeatable-stream />
+		</file:read>
+		<foreach doc:name="For Each" doc:id="6f787bad-a0aa-45bf-8efa-066514a4f8e8" collection="payload" batchSize="1000">
+			<ee:transform doc:name="Transform Message" doc:id="2609318a-e0c4-4a77-ae05-583c23a0c329">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+
+@StreamCapable()
+input payload application/csv
+output application/json deferred=true
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			<file:write doc:name="Write" doc:id="4ffd10f8-5e1d-4f9e-8b56-a0154f22b84a" config-ref="File_Config1" path='#["output" ++ uuid() ++ ".json"]' mode="CREATE_NEW" />
+		</foreach>
+		<logger level="INFO" doc:name="Logger" doc:id="8ca51dcd-e669-41d4-961d-1f27c6754f6c" message='#["end of the flow"]'/>
+	
+	</flow>
+</mule>
